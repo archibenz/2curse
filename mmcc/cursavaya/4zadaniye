@@ -1,0 +1,120 @@
+import math
+import numpy as np
+from tabulate import tabulate
+
+# Здесь вставим исходную матрицу:
+graph = [
+    [0, 95.5874979496, 79.5642912388, 94.6461260319, 39.3193304539, math.inf, math.inf, math.inf, math.inf, 62.9523813725, math.inf, math.inf, 95.9786474705, 46.6714441776, 97.7563917637, math.inf, math.inf, 67.9149210453, math.inf, 12.3348772526],
+    [95.5874979496, 0, 84.0328395367, 58.5388839245, 39.9922549725, math.inf, math.inf, 50.7433593273, 55.0055682659, 59.0373694897, math.inf, 13.4800612926, math.inf, 48.8370597363, math.inf, math.inf, math.inf, 26.3564765453, math.inf, 63.0501449108],
+    [79.5642912388, 84.0328395367, 0, math.inf, 86.9909584522, math.inf, 9.08883214, math.inf, 36.5639030933, math.inf, math.inf, math.inf, math.inf, 50.6762325764, math.inf, 42.2351658344, 83.0486595631, 25.3041088581, math.inf, math.inf],
+    [94.6461260319, 58.5388839245, math.inf, 0, 28.4607350826, 17.6770150661, math.inf, math.inf, math.inf, math.inf, 37.6704633236, 89.3714845181, math.inf, 58.3664834499, math.inf, 47.4359452724, math.inf, math.inf, 8.9873731136, 74.8607575893],
+    [39.3193304539, 39.9922549725, 86.9909584522, 28.4607350826, 0, 15.2065336704, math.inf, math.inf, math.inf, 84.2344343662, 0.7139742374, math.inf, 25.4256784916, math.inf, 5.6122362614, 84.7947180271, math.inf, 9.0822279453, math.inf, math.inf],
+    [math.inf, math.inf, math.inf, 17.6770150661, 15.2065336704, 0, math.inf, math.inf, math.inf, math.inf, 41.1598861217, 24.2978274817, 35.1119220314, 10.3595435614, 35.0349605141, 18.9526259899, 85.9894931317, 85.5223357697, math.inf, math.inf],
+    [math.inf, math.inf, 9.08883214, math.inf, math.inf, math.inf, 0, 27.3581326, 80.19250035, 37.88679242, 59.36749578, 29.47033048, 50.67628026, 89.63277936, 67.4824059, math.inf, math.inf, math.inf, math.inf, math.inf],
+    [math.inf, 50.7433593273, math.inf, math.inf, math.inf, math.inf, 27.3581326, 0, 37.20683455, 32.77925849, 81.57586455, 59.63644385, 88.076967, 57.18063712, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf],
+    [math.inf, 55.0055682659, 36.5639030933, math.inf, math.inf, math.inf, 80.19250035, 37.20683455, 0, 52.88897157, 77.78683305, 23.19861054, 53.91460061, 33.26492906, 20.67342401, math.inf, math.inf, math.inf, math.inf, math.inf],
+    [62.9523813725, 59.0373694897, math.inf, math.inf, 84.2344343662, math.inf, 37.88679242, 32.77925849, 52.88897157, 0, 40.24402499, 2.76581645, 44.98884082, 55.82234263, 93.11982989, 56.03725314, math.inf, math.inf, math.inf, math.inf],
+    [math.inf, math.inf, math.inf, 37.6704633236, 0.7139742374, 41.1598861217, 59.36749578, 81.57586455, 77.78683305, 40.24402499, 0, 61.06179357, 16.36889577, 33.69382024, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf],
+    [math.inf, 13.4800612926, math.inf, 89.3714845181, math.inf, 24.2978274817, 29.47033048, 59.63644385, 23.19861054, 2.76581645, 61.06179357, 0, 33.69382024, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf],
+    [95.9786474705, math.inf, math.inf, math.inf, 25.4256784916, 35.1119220314, 50.67628026, 88.076967, 53.91460061, 44.98884082, 16.36889577, 33.69382024, 0, 64.94722962, 45.29090524, 45.90139985, 48.41914773, math.inf, math.inf, math.inf],
+    [46.6714441776, 48.8370597363, 50.6762325764, 58.3664834499, math.inf, 10.3595435614, 89.63277936, 57.18063712, 33.26492906, 55.82234263, math.inf, math.inf, 64.94722962, 0, 82.66355395, 96.55558467, 57.84532428, math.inf, math.inf, math.inf],
+    [97.7563917637, math.inf, math.inf, 47.4359452724, 5.6122362614, 35.0349605141, 67.4824059, math.inf, 20.67342401, 93.11982989, math.inf, math.inf, 45.29090524, 82.66355395, 0, 38.15076947, math.inf, math.inf, math.inf, math.inf],
+    [math.inf, math.inf, 42.2351658344, 8.9873731136, 84.7947180271, 18.9526259899, math.inf, math.inf, math.inf, 56.03725314, math.inf, math.inf, 45.90139985, 96.55558467, 38.15076947, 0, 93.58620048, 31.27049804, 36.66872382, math.inf],
+    [math.inf, 26.3564765453, 83.0486595631, math.inf, math.inf, 85.9894931317, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, 48.41914773, 57.84532428, math.inf, 93.58620048, 0, 4.541546106, 50.43850541, math.inf],
+    [67.9149210453, math.inf, 25.3041088581, math.inf, 9.0822279453, 85.5223357697, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, 31.27049804, 4.541546106, 0, 76.97889209, math.inf],
+    [math.inf, 63.0501449108, math.inf, 74.8607575893, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, 36.66872382, 50.43850541, 76.97889209, 0, 21.6811955],
+    [12.3348772526, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, 21.6811955, 0]
+]
+
+def floyd_warshall_with_paths(dist_matrix):
+    """
+    Алгоритм Флойда–Уоршелла с восстановлением путей.
+    :param dist_matrix: список списков (матрица NxN) с расстояниями (float('inf') если нет ребра).
+    :return: (dist, next_hop)
+       dist[i][j] - кратчайшее расстояние от i до j
+       next_hop[i][j] - следующий узел на пути i->j (или -1, если нет)
+    """
+    n = len(dist_matrix)
+    # Превращаем в массив NumPy для удобства
+    dist = np.array(dist_matrix, dtype=float)
+    next_hop = np.full((n, n), -1, dtype=int)
+
+    # Инициализация next_hop
+    for i in range(n):
+        for j in range(n):
+            if i == j and dist[i][j] == 0:
+                next_hop[i][j] = i
+            elif not math.isinf(dist[i][j]) and i != j:
+                # Прямое ребро i->j есть
+                next_hop[i][j] = j
+
+    # Алгоритм Флойда–Уоршелла
+    for k in range(n):
+        for i in range(n):
+            for j in range(n):
+                if dist[i][k] + dist[k][j] < dist[i][j]:
+                    dist[i][j] = dist[i][k] + dist[k][j]
+                    next_hop[i][j] = next_hop[i][k]
+
+    return dist, next_hop
+
+def reconstruct_path(i, j, next_hop):
+    """
+    Восстанавливаем полный маршрут (список узлов) от i до j.
+    Если пути нет, возвращаем [].
+    """
+    if next_hop[i][j] == -1:
+        return []  # Нет пути
+    path = [i]
+    # Пока не дойдём до j
+    while i != j:
+        i = next_hop[i][j]
+        if i == -1:
+            return []
+        path.append(i)
+    return path
+
+def build_path_matrix(dist, next_hop):
+    """
+    Строит таблицу (список списков строк) путей i->j,
+    где каждая ячейка - это '1->3->...' либо 'Нет'.
+    :param dist: матрица кратчайших расстояний
+    :param next_hop: матрица для восстановления пути
+    :return: matrix_routes (список списков строк)
+    """
+    n = dist.shape[0]
+    matrix_routes = [[""]*n for _ in range(n)]
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                matrix_routes[i][j] = f"{i+1}"  # Сам в себя
+            else:
+                path_nodes = reconstruct_path(i, j, next_hop)
+                if len(path_nodes) == 0 or math.isinf(dist[i][j]):
+                    matrix_routes[i][j] = "Нет"
+                else:
+                    # Преобразуем список индексов в строку вида "1->2->..."
+                    path_str = "->".join(str(node+1) for node in path_nodes)
+                    matrix_routes[i][j] = path_str
+    return matrix_routes
+
+if __name__ == "__main__":
+    dist, next_hop = floyd_warshall_with_paths(graph)
+    
+    # Построим матрицу строковых маршрутов
+    route_matrix = build_path_matrix(dist, next_hop)
+    
+    # Выведем матрицу кратчайших расстояний
+    print("=== Матрица кратчайших расстояний (dist) ===")
+    # В больших задачах удобно округлять и ставить ограничение на ширину
+    dist_rounded = [[f"{dist[i,j]:.2f}" if not math.isinf(dist[i,j]) else "∞"
+                     for j in range(len(dist))] for i in range(len(dist))]
+    headers = [str(k+1) for k in range(len(dist))]
+    table_dist = tabulate(dist_rounded, headers=headers, showindex=[f"{r+1}" for r in range(len(dist))], tablefmt="grid")
+    print(table_dist)
+    
+    # Выведем матрицу маршрутов
+    print("\n=== Матрица кратчайших маршрутов ===")
+    # route_matrix - 20x20 строк
+    table_routes = tabulate(route_matrix, headers=headers, showindex=[f"{r+1}" for r in range(len(dist))], tablefmt="grid")
+    print(table_routes)
