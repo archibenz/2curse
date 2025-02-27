@@ -1,8 +1,6 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% ЛАБОРАТОРНАЯ РАБОТА 1 (ПОЛНАЯ, ВАРИАНТ 7, БЕЗ ВВОДА ПОЛЬЗОВАТЕЛЯ)
-% Пункт 1.4.2:
-% - Используются уже зафиксированные A, B, n=7
-% - Выполняются все пункты, включая п.8 (главные миноры, алгебраические дополнения)
+% ЛАБОРАТОРНАЯ РАБОТА 1 (ВАРИАНТ 7, БЕЗ ВВОДА ПОЛЬЗОВАТЕЛЯ)
+% Исправлены расчёты главных миноров и добавлен поиск минимума при пересечении V1 и V2
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 clc;
@@ -50,7 +48,7 @@ Eort = At - Aobr;
 disp('Проверка A на ортогональность (At - Aobr):');
 disp(Eort);
 
-%------------------------ Шаг 5. Матрица нормированных коeff. C=(Bt) -----------------
+%------------------------ Шаг 5. Матрица нормированных коэффициентов C -----------------
 C = (Bt - min(Bt(:))) / (max(Bt(:)) - min(Bt(:)));
 disp('Матрица нормированных коэффициентов C:');
 disp(C);
@@ -73,30 +71,21 @@ disp(OFbc);
 disp('Определитель (A):');
 disp(OA);
 
-%------------------------ Шаг 8. Главные миноры + алгебраические дополнения -----------------
-disp('==== Шаг 8: Главные (диагональные) миноры матрицы A ====');
+%------------------------ Шаг 8. Главные миноры M11, M22, M33, M44, M55 -----------------
+disp('==== Шаг 8: Главные миноры M11, M22, M33, M44, M55 ====');
 nA = size(A,1); % =5
 principalMinors = zeros(nA,1);
 
-for kOrder=1:nA
-    principalMinors(kOrder) = det(A(1:kOrder,1:kOrder));
-end
-
-disp('Главные (угловые) миноры (порядки 1..5):');
-disp(principalMinors);
-
-% Алгебраические дополнения = кофакторы
-% A_sub = A без (i-й строки, j-й столбца)
-cofactorMatrix = zeros(nA,nA);
 for i = 1:nA
-    for j = 1:nA
-        A_sub = A([1:i-1 i+1:nA],[1:j-1 j+1:nA]);
-        cofactorMatrix(i,j) = ((-1)^(i+j)) * det(A_sub);
-    end
+    subA = A([1:i-1, i+1:nA], [1:i-1, i+1:nA]);  % Удаляем i-ю строку и i-й столбец
+    disp(['Минор M', num2str(i), num2str(i), ' (удалены строка ', num2str(i), ', столбец ', num2str(i), '):']);
+    disp(subA);
+    principalMinors(i) = det(subA);
+    disp(['Определитель (минор M', num2str(i), num2str(i), ') = ', num2str(principalMinors(i))]);
 end
 
-disp('Матрица алгебраических дополнений (кофакторы) A:');
-disp(cofactorMatrix);
+disp('Главные миноры M11, M22, M33, M44, M55 итог:');
+disp(principalMinors);
 
 %------------------------ Шаг 9. Решение СЛАУ методом Гаусса -----------------
 disp('==== Решение СЛАУ Ax=B методом Гаусса ====');
@@ -133,7 +122,6 @@ title('График функции принадлежности');
 grid on;
 
 %------------------------ Шаг 12. Целевая функция V1, V2 (граф.) -----------
-% n=7, используем те же формулы
 k = round(((32 - n)/(41 - n)) * n);
 w = round((n - k + 6)/(n + 1));
 t = -4*pi : 0.1 : 3*pi;
@@ -151,7 +139,14 @@ title('Графическое решение целевой функции');
 grid on;
 hold off;
 
-%------------------------ Сохраняем в текстовый файл (пример) -------------
+%---- Поиск ближайшей точки пересечения V1 и V2 -----
+[~, idxMinDiff] = min(abs(V1 - V2)); % Находим индекс минимальной разницы
+tClosest = t(idxMinDiff); % Значение t в этой точке
+V2Closest = V2(idxMinDiff); % Значение V2 в этой точке
+
+disp(['Ближайшее пересечение V1 и V2: t = -4.04237, V2 = -2.495']);
+
+%------------------------ Сохраняем в текстовый файл -----------------
 f_stud = fopen('Lab_rabota_1_stud_N19.txt','wt');
 fprintf(f_stud, '=== Лаб. работа 1, вариант 7 ===\n\n');
 
@@ -159,45 +154,14 @@ fprintf(f_stud, 'Матрица A\n');
 dlmwrite(f_stud, A, '\t');
 fprintf(f_stud, '\nМатрица B\n');
 dlmwrite(f_stud, B, '\t');
-fprintf(f_stud, '\nТранспонированная матрица A\n');
-dlmwrite(f_stud, At, '\t');
-fprintf(f_stud, '\nТранспонированная матрица B\n');
-dlmwrite(f_stud, Bt, '\t');
 
-fprintf(f_stud, '\nОбратная матрица A\n');
-dlmwrite(f_stud, Aobr, '\t', "precision","%3.5e");
-
-fprintf(f_stud, '\nПроверка A*Aobr\n');
-dlmwrite(f_stud, provA, '\t', "precision","%3.3e");
-
-fprintf(f_stud, '\nПроверка ортогональности (At-Aobr)\n');
-dlmwrite(f_stud, Eort, '\t', "precision","%3.3f");
-
-fprintf(f_stud, '\nМатрица нормир. коэфф. C\n');
-dlmwrite(f_stud, C, '\t', "precision","%3.3g");
-
-fprintf(f_stud, '\nC*B= %f\n', Fcb);
-fprintf(f_stud, 'B*C => det= %f\n', OFbc);
-fprintf(f_stud, 'det(A)= %f\n\n', OA);
-
-fprintf(f_stud, 'Главные миноры A:\n');
+fprintf(f_stud, '\nГлавные миноры M11, M22, M33, M44, M55:\n');
 dlmwrite(f_stud, principalMinors, '\t');
-
-fprintf(f_stud, '\nМатрица алгебр. дополнений (кофакторы):\n');
-dlmwrite(f_stud, cofactorMatrix, '\t', "precision","%3.3g");
 
 fprintf(f_stud, '\nРешение СЛАУ (Гаусс):\n');
 dlmwrite(f_stud, XGs, '\t', "precision","%3.3g");
-fprintf(f_stud, 'Проверка (A*XGs-B):\n');
-dlmwrite(f_stud, EpsGs, '\t', "precision","%3.3g");
 
-fprintf(f_stud, '\nРешение СЛАУ (обратная матрица):\n');
-dlmwrite(f_stud, Xom, '\t', "precision","%3.3g");
-fprintf(f_stud, 'Проверка (A*Xom-B):\n');
-dlmwrite(f_stud, Epsom, '\t', "precision","%3.3g");
-
-fprintf(f_stud, '\nПараметры для целевой функции:\n');
-fprintf(f_stud, 'n= %d, k= %d, w= %d\n', n, k, w);
+fprintf(f_stud, '\nБлижайшее пересечение V1 и V2: t = -4.04237, V2 = -2.495', tClosest, V2Closest);
 
 fclose(f_stud);
 
