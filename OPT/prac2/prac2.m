@@ -60,5 +60,3 @@ for i = 1:size(alpha, 1)
 end
 equation_str = strcat(equation_str, "] * xH");
 disp(equation_str);
-
-disp("\nВыводы не включены. Их нужно будет сформулировать самостоятельно.");
