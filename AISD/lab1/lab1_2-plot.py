@@ -2,12 +2,28 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Читаем отсортированные данные
+data = []
 with open("selection_sorted_data.txt", "r") as file:
-    data = [int(line.strip()) for line in file]
+    for line in file:
+        line = line.strip()
+        # Skip header lines and empty lines
+        if not line or line.startswith("#"):
+            continue
+        # Parse the numbers from this line
+        data.extend([int(x) for x in line.split()])
 
 # Читаем время выполнения сортировки
+sizes = []
+execution_times = []
 with open("selection_execution_time.txt", "r") as file:
-    execution_time = float(file.readline().strip())
+    for line in file:
+        parts = line.strip().split()
+        if len(parts) >= 2:  # Ensure we have both size and time
+            sizes.append(int(parts[0]))
+            execution_times.append(float(parts[1]))
+
+# Use the execution time for the largest array size
+execution_time = execution_times[-1] if execution_times else 0
 
 # Генерация количества элементов для графика
 n = len(data)
