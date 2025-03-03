@@ -9,13 +9,13 @@
 
 int main() {
     std::ofstream outFile("bst_search_results.txt");
-    outFile << "Size,Time(ns)\n";
+    outFile << "Size,Time(s)\n";
     
     std::random_device rd;
     std::mt19937 gen(rd());
     
-    // Test for various array sizes
-    for (int size = 1000; size <= 1000000; size *= 2) {
+    // Test for various array sizes from 1000 to 50000 with step 1000
+    for (int size = 1000; size <= 50000; size += 1000) {
         // Create a balanced BST (using std::set) of size 'size'
         std::set<int> bst;
         for (int i = 0; i < size; i++) {
@@ -26,6 +26,8 @@ int main() {
         
         // Perform multiple searches to get accurate timing
         const int NUM_SEARCHES = 10000;
+        
+        // Measure total time for all searches in microseconds
         auto start = std::chrono::high_resolution_clock::now();
         
         for (int i = 0; i < NUM_SEARCHES; i++) {
@@ -34,10 +36,15 @@ int main() {
         }
         
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() / NUM_SEARCHES;
         
-        std::cout << "BST Search - Tree size: " << size << ", Average time: " << duration << " ns" << std::endl;
-        outFile << size << "," << duration << "\n";
+        // Calculate total time in microseconds first
+        long long totalMicroseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        
+        // Convert to seconds by dividing by 10^6 and then by number of searches
+        double averageTimeSeconds = (double)totalMicroseconds / (1000000.0 * NUM_SEARCHES);
+        
+        std::cout << "BST Search - Tree size: " << size << ", Average time: " << averageTimeSeconds << " s" << std::endl;
+        outFile << size << "," << averageTimeSeconds << "\n";
     }
     
     outFile.close();

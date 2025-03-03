@@ -1,5 +1,5 @@
 try:
-    import pandas as pd
+    import pandas as pd # type: ignore
 except ImportError:
     print("Pandas не установлен. Пробуем использовать базовые библиотеки...")
     pd = None
@@ -20,10 +20,11 @@ try:
         bst_data = pd.read_csv('bst_search_results.txt')
         hash_data = pd.read_csv('hash_search_results.txt')
         
-        # Convert nanoseconds to seconds
-        binary_data['Time(s)'] = binary_data['Time(ns)'] / 1e9
-        bst_data['Time(s)'] = bst_data['Time(ns)'] / 1e9
-        hash_data['Time(s)'] = hash_data['Time(ns)'] / 1e9
+        # Apply light smoothing if there are significant jumps
+        if len(binary_data) > 5:
+            binary_data['Time(s)'] = binary_data['Time(s)'].rolling(window=3, center=True).mean().fillna(binary_data['Time(s)'])
+            bst_data['Time(s)'] = bst_data['Time(s)'].rolling(window=3, center=True).mean().fillna(bst_data['Time(s)'])
+            hash_data['Time(s)'] = hash_data['Time(s)'].rolling(window=3, center=True).mean().fillna(hash_data['Time(s)'])
     else:
         # Manual CSV reading if pandas is not available
         binary_data = {'Size': [], 'Time(s)': []}
@@ -36,7 +37,7 @@ try:
             next(reader)  # skip header
             for row in reader:
                 binary_data['Size'].append(int(row[0]))
-                binary_data['Time(s)'].append(float(row[1]) / 1e9)
+                binary_data['Time(s)'].append(float(row[1]))  # Already in seconds
         
         # Read BST search data
         with open('bst_search_results.txt', 'r') as f:
@@ -44,7 +45,7 @@ try:
             next(reader)  # skip header
             for row in reader:
                 bst_data['Size'].append(int(row[0]))
-                bst_data['Time(s)'].append(float(row[1]) / 1e9)
+                bst_data['Time(s)'].append(float(row[1]))  # Already in seconds
         
         # Read hash search data
         with open('hash_search_results.txt', 'r') as f:
@@ -52,26 +53,20 @@ try:
             next(reader)  # skip header
             for row in reader:
                 hash_data['Size'].append(int(row[0]))
-                hash_data['Time(s)'].append(float(row[1]) / 1e9)
+                hash_data['Time(s)'].append(float(row[1]))  # Already in seconds
     
     # Create figure for comparison chart
-    plt.figure(figsize=(12, 8))
+    plt.figure(figsize=(14, 8))
     
     # Use scientific notation for very small numbers
     plt.ticklabel_format(axis='y', style='scientific', scilimits=(0,0))
     
-    # Plot data in seconds
-    plt.plot(binary_data['Size'], binary_data['Time(s)'], marker='o', linewidth=2, label='Binary Search')
-    plt.plot(bst_data['Size'], bst_data['Time(s)'], marker='s', linewidth=2, label='BST Search')
-    plt.plot(hash_data['Size'], hash_data['Time(s)'], marker='^', linewidth=2, label='Hash Search')
+    # Plot data in seconds with smaller markers for cleaner look
+    plt.plot(binary_data['Size'], binary_data['Time(s)'], marker='o', markersize=4, linewidth=1.5, label='Binary Search')
+    plt.plot(bst_data['Size'], bst_data['Time(s)'], marker='s', markersize=4, linewidth=1.5, label='BST Search')
+    plt.plot(hash_data['Size'], hash_data['Time(s)'], marker='^', markersize=4, linewidth=1.5, label='Hash Search')
     
-    # Use log scale for x-axis
-    plt.xscale('log', base=2)
-    
-    # Format x-axis to show actual numbers
-    plt.gca().xaxis.set_major_formatter(ScalarFormatter())
-    plt.xticks(binary_data['Size'], rotation=45)
-    
+    # For better readability, don't use log scale with linear steps
     # Add grid
     plt.grid(True, which="both", ls="-", alpha=0.2)
     
@@ -89,14 +84,18 @@ try:
     # Save chart as PNG
     plt.savefig('search_comparison.png', dpi=300, bbox_inches='tight')
     
-    # Create a table for comparison
+    # Create a table for comparison - show only some key points for readability
+    # Select a subset of points to display (every 5000 elements)
+    display_indices = [i for i, size in enumerate(binary_data['Size']) if size % 5000 == 0 or size == 1000]
+    
     fig, ax = plt.subplots(figsize=(12, 6))
     ax.axis('tight')
     ax.axis('off')
     
-    # Prepare table data with times in seconds (scientific notation)
+    # Prepare table data
     table_data = []
-    for i, size in enumerate(binary_data['Size']):
+    for i in display_indices:
+        size = binary_data['Size'][i] if isinstance(binary_data['Size'], list) else binary_data['Size'].iloc[i]
         bin_time = binary_data['Time(s)'][i] if isinstance(binary_data['Time(s)'], list) else binary_data['Time(s)'].iloc[i]
         bst_time = bst_data['Time(s)'][i] if isinstance(bst_data['Time(s)'], list) else bst_data['Time(s)'].iloc[i]
         hash_time = hash_data['Time(s)'][i] if isinstance(hash_data['Time(s)'], list) else hash_data['Time(s)'].iloc[i]
