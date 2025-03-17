@@ -2,6 +2,7 @@
 #include <chrono>
 #include <vector>
 #include <string>
+#include <fstream> // Added for file output
 
 // 1. Iterative factorial calculation
 /**
@@ -172,16 +173,53 @@ void compareFactorialPerformance(int n) {
               << "что обычно делает его медленнее для больших значений N." << std::endl;
 }
 
+/**
+ * Generates timing data for factorial calculations for a range of values
+ * and saves the results directly to a file
+ */
+void generateFactorialTimingData(int max_n, const std::string& filename) {
+    std::ofstream outfile(filename);
+    if (!outfile.is_open()) {
+        std::cerr << "Failed to open file for writing: " << filename << std::endl;
+        return;
+    }
+    
+    std::cout << "Generating factorial timing data for n=1 to " << max_n << "..." << std::endl;
+    
+    for (int n = 1; n <= max_n; n++) {
+        // Timing for iterative approach
+        auto start_iterative = std::chrono::high_resolution_clock::now();
+        unsigned long long result_iterative = factorial_iterative(n);
+        auto end_iterative = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::micro> time_iterative = end_iterative - start_iterative;
+        
+        // Timing for recursive approach
+        auto start_recursive = std::chrono::high_resolution_clock::now();
+        unsigned long long result_recursive = factorial_recursive(n);
+        auto end_recursive = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::micro> time_recursive = end_recursive - start_recursive;
+        
+        // Write to file: n iterative_time recursive_time
+        outfile << n << " " << time_iterative.count() << " " << time_recursive.count() << std::endl;
+        
+        std::cout << "." << std::flush; // Progress indicator
+    }
+    
+    outfile.close();
+    std::cout << "\nData saved to " << filename << std::endl;
+}
+
 int main() {
     int choice = 0;
-    while (choice != 5) {
+    while (choice != 6) { // Changed from 5 to 6
         std::cout << "\n========= ДЕМОНСТРАЦИЯ АЛГОРИТМОВ =========" << std::endl;
         std::cout << "1. Вычислить факториал (итеративно)" << std::endl;
         std::cout << "2. Вычислить факториал (рекурсивно)" << std::endl;
         std::cout << "3. Операции с бинарным деревом" << std::endl;
         std::cout << "4. Сравнить производительность вычисления факториала" << std::endl;
-        std::cout << "5. Выход" << std::endl;
-        std::cout << "Введите ваш выбор (1-5): ";
+        std::cout << "5. Сгенерировать данные для графика (для n=1..20)" << std::endl; // New option
+        std::cout << "6. Выход" << std::endl; // Changed from 5 to 6
+        std::cout << "Введите ваш выбор (1-6): "; // Changed from (1-5) to (1-6)
         
         std::cin >> choice;
         
@@ -191,7 +229,7 @@ int main() {
                 std::cout << "Введите неотрицательное целое число для вычисления факториала: ";
                 std::cin >> n;
                 
-                std::cout << "Факториал числа " << n << " (итеративно): " 
+                std::cout << "Фак��ориал числа " << n << " (итеративно): " 
                           << factorial_iterative(n) << std::endl;
                 break;
             }
@@ -248,7 +286,16 @@ int main() {
                 break;
             }
             
-            case 5:
+            case 5: {
+                int max_n = 20; // Default
+                std::cout << "Введите максимальное значение n (рекомендуется 20): ";
+                std::cin >> max_n;
+                
+                generateFactorialTimingData(max_n, "factorial_times.txt");
+                break;
+            }
+            
+            case 6: // Changed from 5 to 6
                 std::cout << "Выход из программы. До свидания!" << std::endl;
                 break;
                 
