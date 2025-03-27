@@ -1,0 +1,49 @@
+
+/afs/dcti.sut.ru/homes/students/ikpi33/ikpi33n40/gitea/2_2curse_mzyap/lab2/lab2_1.axf:     file format elf32-littlearm
+
+
+Disassembly of section .text:
+
+00000000 <__cs3_interrupt_vector>:
+.text
+.global _start
+
+_start:
+    @ Загружаем числа в регистры
+    LDR R1, =0x7E89FD56  @ Число 1 в R1
+   0:	e59f1020 	ldr	r1, [pc, #32]	; 28 <stop+0x4>
+    MOVW R2, #0x53A4     @ Загружаем младшие 16 бит числа 2
+   4:	e30523a4 	movw	r2, #21412	; 0x53a4
+    MOVT R2, #0x7BC7     @ Загружаем старшие 16 бит числа 2
+   8:	e3472bc7 	movt	r2, #31687	; 0x7bc7
+
+    @ Выполняем сложение (без флагов)
+    ADD R3, R1, R2       @ R3 = R1 + R2
+   c:	e0813002 	add	r3, r1, r2
+
+    @ Выполняем сложение (с обновлением флагов)
+    ADDS R3, R1, R2      @ R3 = R1 + R2 (флаги обновляются)
+  10:	e0913002 	adds	r3, r1, r2
+    
+    @ Сохраняем CPSR в R4 для отладки
+    MRS R4, CPSR         @ Копируем CPSR в R4
+  14:	e10f4000 	mrs	r4, CPSR
+    
+    @ Выполняем вычитание (без флагов)
+    SUB R3, R1, R2       @ R3 = R1 - R2
+  18:	e0413002 	sub	r3, r1, r2
+
+    @ Выполняем вычитание (с обновлением флагов)
+    SUBS R3, R1, R2      @ R3 = R1 - R2 (флаги обновляются)
+  1c:	e0513002 	subs	r3, r1, r2
+
+    @ Сохраняем CPSR после SUBS в R5
+    MRS R5, CPSR         @ Копируем CPSR в R5
+  20:	e10f5000 	mrs	r5, CPSR
+
+00000024 <stop>:
+
+    @ Бесконечный цикл, чтобы программа не завершалась
+stop:
+  24:	eafffffe 	b	24 <stop>
+  28:	7e89fd56 	.word	0x7e89fd56

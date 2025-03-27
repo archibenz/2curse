@@ -1,0 +1,3 @@
+nm main.o | grep signed_int
+nm signed_int.o | grep signed_int
+nm unsigned_int.o | grep unsigned_int

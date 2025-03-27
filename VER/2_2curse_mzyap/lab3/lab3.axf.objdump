@@ -1,0 +1,25 @@
+
+/afs/dcti.sut.ru/homes/students/ikpi33/ikpi33n40/gitea/2_2curse_mzyap/lab3/lab3.axf:     file format elf32-littlearm
+
+
+Disassembly of section .text:
+
+00000000 <__cs3_interrupt_vector>:
+    .global _start
+_start: ldr r0,=0xff200020
+   0:	e59f0014 	ldr	r0, [pc, #20]	; 1c <st+0x4>
+movw r1,0x5874
+   4:	e3051874 	movw	r1, #22644	; 0x5874
+movt r1,0x5c54
+   8:	e3451c54 	movt	r1, #23636	; 0x5c54
+str r1,[r0],#16
+   c:	e4801010 	str	r1, [r0], #16
+mov r1,#0x7c
+  10:	e3a0107c 	mov	r1, #124	; 0x7c
+str r1,[r0]
+  14:	e5801000 	str	r1, [r0]
+
+00000018 <st>:
+st: b st
+  18:	eafffffe 	b	18 <st>
+  1c:	ff200020 	.word	0xff200020

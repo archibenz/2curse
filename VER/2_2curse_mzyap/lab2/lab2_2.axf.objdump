@@ -1,0 +1,52 @@
+
+/afs/dcti.sut.ru/homes/students/ikpi33/ikpi33n40/gitea/2_2curse_mzyap/lab2/lab2_2.axf:     file format elf32-littlearm
+
+
+Disassembly of section .text:
+
+00000000 <__cs3_interrupt_vector>:
+.text
+.global _start
+
+_start:
+    LDR R0, ADR      @ Загружаем адрес данных в R0
+   0:	e59f0024 	ldr	r0, [pc, #36]	; 2c <ADR>
+    LDR R1, CNT      @ Загружаем адрес переменной CNT в R1
+   4:	e59f1024 	ldr	r1, [pc, #36]	; 30 <CNT>
+    MOV R5, #2        @ Устанавливаем R5 в 2 напрямую (замена LDR)
+   8:	e3a05002 	mov	r5, #2
+
+0000000c <MET>:
+
+MET:
+    LDR R2, [R0]      @ Загружаем значение из памяти в R2
+   c:	e5902000 	ldr	r2, [r0]
+    TST R2, #8        @ Проверяем, установлен ли 3-й бит (маска 0x08)
+  10:	e3120008 	tst	r2, #8
+    ADDEQ R3, R1, R2  @ Если 3-й бит R2 == 0, выполняем сложение R3 = R1 + R2
+  14:	00813002 	addeq	r3, r1, r2
+
+    SUBNE R3, R1, R2  @ Если 3-й бит R2 == 1, выполняем вычитание R3 = R1 - R2
+  18:	10413002 	subne	r3, r1, r2
+    STR R3, RESULT    @ Сохраняем R3 в памяти RESULT
+  1c:	e58f3010 	str	r3, [pc, #16]	; 34 <RESULT>
+
+    SUBS R5, R5, #1   @ Уменьшаем счётчик итераций
+  20:	e2555001 	subs	r5, r5, #1
+    BNE MET           @ Если счётчик > 0, повторяем цикл
+  24:	1afffff8 	bne	c <MET>
+
+00000028 <fin>:
+
+fin:
+    B fin             @ Останавливаем выполнение (бесконечный цикл)
+  28:	eafffffe 	b	28 <fin>
+
+0000002c <ADR>:
+  2c:	ff200040 	.word	0xff200040
+
+00000030 <CNT>:
+  30:	00000064 	.word	0x00000064
+
+00000034 <RESULT>:
+  34:	00000000 	.word	0x00000000
