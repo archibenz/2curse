@@ -1,6 +1,7 @@
 import math
 import matplotlib.pyplot as plt
 import numpy as np  # для построения гладкой кривой
+from scipy import stats
 
 def main():
     # Задайте номер варианта здесь (при необходимости)
@@ -129,7 +130,7 @@ def main():
     fig, axs = plt.subplots(3, 1, figsize=(10, 18))
 
     # График 1: Эмпирическая функция распределения
-    axs[0].step([-math.inf] + midpoints, [0] + cum_freq, where='post', label="Эмпирическая функция $F_n^*(x)$", linewidth=2)
+    axs[0].step([boundaries[0]] + midpoints, [0] + cum_freq, where='post', label="Эмпирическая функция $F_n^*(x)$", linewidth=2)
     axs[0].scatter(midpoints, cum_freq, color='red', zorder=3)
     axs[0].set_xlabel("x")
     axs[0].set_ylabel("$F_n^*(x)$")
@@ -188,6 +189,37 @@ def main():
         f_val = normal_pdf(mp, sample_mean, corrected_std)
         theor_values.append(f_val)
         print(f"f(x{i}*) = {f_val:.3f}")
+
+    # --- Проверка нормальности распределения по критерию Колмогорова ---
+    # Применяем критерий Колмогорова для проверки соответствия эмпирических данных нормальному распределению
+    ks_statistic, ks_pvalue = stats.kstest(data, 'norm', args=(sample_mean, corrected_std))
+    print("\n--- Критерий Колмогорова ---")
+    print(f"Статистика K-S: {ks_statistic:.3f}")
+    print(f"p-value: {ks_pvalue:.3f}")
+    if ks_pvalue > 0.05:
+        print("Гипотеза о нормальности распределения не отвергается (Критерий Колмогорова).")
+    else:
+        print("Гипотеза о нормальности распределения отвергается (Критерий Колмогорова).")
+    
+    # --- Проверка нормальности распределения по критерию Пирсона (хи-квадрат) ---
+    # Вычисляем ожидаемые частоты для каждого интервала, используя теоретическую нормальную функцию распределения
+    expected_freq = []
+    for j in range(l):
+        left, right = boundaries[j], boundaries[j+1]
+        expected_prob = stats.norm.cdf(right, loc=sample_mean, scale=corrected_std) - stats.norm.cdf(left, loc=sample_mean, scale=corrected_std)
+        expected_freq.append(expected_prob * n)
+    # Вычисляем статистику хи-квадрат
+    chi_square_statistic = sum((obs - exp)**2/exp for obs, exp in zip(freq, expected_freq) if exp > 0)
+    # Число степеней свободы: количество интервалов - 1 - число оцениваемых параметров (среднее и стандартное отклонение)
+    df = l - 3  
+    chi_square_critical = stats.chi2.ppf(0.95, df)
+    print("\n--- Критерий Пирсона (хи-квадрат) ---")
+    print(f"Статистика хи-квадрат: {chi_square_statistic:.3f}")
+    print(f"Критическое значение (0.95, df={df}): {chi_square_critical:.3f}")
+    if chi_square_statistic < chi_square_critical:
+        print("Гипотеза о нормальности распределения не отвергается (Критерий Пирсона).")
+    else:
+        print("Гипотеза о нормальности распределения отвергается (Критерий Пирсона).")
 
 if __name__ == "__main__":
     main()
