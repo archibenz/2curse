@@ -10,18 +10,18 @@ def plot_search_results(csv_file='substring_search_results.txt'):
     # Rename columns for display purposes
     display_data = data.copy()
     display_data.rename(columns={
-        'TimeKMP(ms)': 'Binary Search(ms)', 
-        'TimeBoyerMoore(ms)': 'BST Search(ms)',
-        'TimeRabinKarp(ms)': 'Hash Search(ms)'
+        'TimeKMP(ms)': 'KMP(ms)', 
+        'TimeBoyerMoore(ms)': 'BoyerMoore(ms)',
+        'TimeRabinKarp(ms)': 'RabinKarp(ms)'
     }, inplace=True)
     
     # Create the plot
     plt.figure(figsize=(12, 6))
     
     # Plot each algorithm with smooth lines (no markers)
-    plt.plot(data['StringLength'], data['TimeKMP(ms)'], 'r-', linewidth=2, label='Binary Search')
-    plt.plot(data['StringLength'], data['TimeBoyerMoore(ms)'], 'g-', linewidth=2, label='BST Search')
-    plt.plot(data['StringLength'], data['TimeRabinKarp(ms)'], 'b-', linewidth=2, label='Hash Search')
+    plt.plot(data['StringLength'], data['TimeKMP(ms)'], 'r-', linewidth=2, label='KMP')
+    plt.plot(data['StringLength'], data['TimeBoyerMoore(ms)'], 'g-', linewidth=2, label='BoyerMoore')
+    plt.plot(data['StringLength'], data['TimeRabinKarp(ms)'], 'b-', linewidth=2, label='RabinKarp')
     
     # Add labels and title
     plt.xlabel('String Length')
@@ -45,9 +45,9 @@ def plot_search_results(csv_file='substring_search_results.txt'):
     # Select columns for display
     table_data = pd.DataFrame({
         'StringLength': display_data['StringLength'],
-        'Binary Search(ms)': display_data['Binary Search(ms)'],
-        'BST Search(ms)': display_data['BST Search(ms)'],
-        'Hash Search(ms)': display_data['Hash Search(ms)'],
+        'Binary Search(ms)': display_data['KMP(ms)'],
+        'BST Search(ms)': display_data['BoyerMoore(ms)'],
+        'Hash Search(ms)': display_data['RabinKarp(ms)'],
         'Binary/BST Ratio': data['Binary_to_BST_Ratio'],
         'Hash/BST Ratio': data['Hash_to_BST_Ratio']
     })
