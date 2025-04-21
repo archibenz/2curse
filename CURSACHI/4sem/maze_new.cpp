@@ -1271,7 +1271,7 @@ namespace our
         "   while generating, until exactly n additional passages appear.\n"
         "   Time: O(W*H), Memory: O(W*H)\n\n"
         "3) Simple 20x20:\n"
-        "   Random border openings без DFS.\n"
+        "   Random border openings without DFS.\n"
         "   Time: O(1)\n";
     }
 
