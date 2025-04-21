@@ -299,6 +299,68 @@ namespace our
 
             return 1;  
         }
+
+        // ------------------------------------------------------------------
+        //  Optimised non‑perfect backtracking: создаёт n «петель» во время обхода,
+        //  а не пост‑фактум. extra_loops — сколько дополнительных проходов нуженo.
+        int generate_imperfect_backtrack(int extra_loops)
+        {
+            std::pair<int,int> cur,nxt;
+            cell *curCell,*nxtCell;
+            unsigned char moves,dir;
+            std::stack<cell*> st;
+
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::uniform_real_distribution<> prob(0.0,1.0);
+
+            st.push(&cell_array[start_cell_cords.first][start_cell_cords.second]);
+            cell_array[start_cell_cords.first][start_cell_cords.second].in_use = 1;
+
+            while(!st.empty())
+            {
+                curCell = st.top();
+                cur = {curCell->x_cord,curCell->y_cord};
+                moves = get_available_neighbors(cur.first,cur.second);
+
+                // нет непосещённых — шанс пробить стену к посещённой клетке
+                if(moves == 0)
+                {
+                    if(extra_loops > 0)
+                    {
+                        unsigned char visited = 0;
+                        int x = cur.first, y = cur.second;
+                        if(isValid(x-1,y) && cell_array[x-1][y].in_use && (curCell->wall_direction_mask & Up))    visited |= Up;
+                        if(isValid(x+1,y) && cell_array[x+1][y].in_use && (curCell->wall_direction_mask & Down))  visited |= Down;
+                        if(isValid(x,y-1) && cell_array[x][y-1].in_use && (curCell->wall_direction_mask & Left))  visited |= Left;
+                        if(isValid(x,y+1) && cell_array[x][y+1].in_use && (curCell->wall_direction_mask & Right)) visited |= Right;
+
+                        if(visited && prob(gen) < 0.35)    // 35 % шанс
+                        {
+                            dir = choose_random_move_direction(visited);
+                            curCell->wall_direction_mask &= ~dir;
+                            nxt = move(cur,dir);
+                            nxtCell = &cell_array[nxt.first][nxt.second];
+                            nxtCell->wall_direction_mask &= ~get_opposite_direction(dir);
+                            --extra_loops;
+                        }
+                    }
+                    st.pop();
+                    continue;
+                }
+
+                // обычный шаг
+                dir = choose_random_move_direction(moves);
+                curCell->wall_direction_mask &= ~dir;
+                nxt = move(cur,dir);
+                nxtCell = &cell_array[nxt.first][nxt.second];
+                nxtCell->wall_direction_mask &= ~get_opposite_direction(dir);
+                nxtCell->in_use = 1;
+                st.push(nxtCell);
+            }
+            return 1;
+        }
+
     };
 
      // крч создам наследуемый класс, в котором ячейки будут разбиваться на мьютексные секции-квадраты какого-то размера 
@@ -1203,11 +1265,11 @@ namespace our
     {
         std::cout <<
         "1) Classic backtracking:\n"
-        "   Pseudocode: DFS with stack, knock walls down.\n"
+        // Обновлён пункт 2:
+        "2) Non‑perfect maze (optimised backtracking):\n"
+        "   Modified DFS knocks down a wall to an already visited neighbour\n"
+        "   while generating, until exactly n additional passages appear.\n"
         "   Time: O(W*H), Memory: O(W*H)\n\n"
-        "2) Non-perfect maze:\n"
-        "   Build perfect maze, затем проделать ровно n выходов.\n"
-        "   Time: O(W*H + n)\n\n"
         "3) Simple 20x20:\n"
         "   Random border openings без DFS.\n"
         "   Time: O(1)\n";
@@ -1222,6 +1284,7 @@ namespace our
         long cells = (long)w * h;
         long bytes = cells * sizeof(our::cell) * 100;
         std::cout << "Для 100 лабиринтов потребуется " << bytes << " байт\n";
+        std::cout << "Неидеальный алгоритм использует ту же память — структура клеток не меняется.\n";
     }
 
 }
@@ -1261,7 +1324,8 @@ int main()
     cout << "n выходов> "; 
     cin >> n;
     our::MazeSync m(20,20,1);
-    m.generate_backtrack();
+    // Заменено:
+    m.generate_imperfect_backtrack(n);
     auto S = m.start_cell_cords;
     // сформировать n уникальных выходов
     vector<pair<int,int>> exits;
