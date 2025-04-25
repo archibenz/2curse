@@ -838,7 +838,101 @@ namespace our
             locked_mutexes.clear(); // Очищаем набор после разблокировки
         }
         
-        void generate_multithread_backtrack(std::pair<int, int> start_cell_cords, size_t thread_identifier, Thread_sync& thread_sync_pointer)
+        // ------------------------------------------------------------------
+        // Multithreaded non‑perfect backtracking:
+        // Spawns threads from different start points (corners), each carving loops on‑the‑fly.
+        // Threads coordinate via per‑cell mutexes and stop when crossing another thread's territory.
+        void generate_multithread_imperfect(int extra_loops, int num_threads)
+        {
+            // Prepare threads and synchronization
+            std::vector<std::thread> threads;
+            threads.reserve(num_threads);
+            Thread_sync ts(&threads);
+
+            // Define up to 4 corner start points
+            std::vector<std::pair<int,int>> corners = {
+                {0, 0},
+                {0, width - 1},
+                {length - 1, 0},
+                {length - 1, width - 1}
+            };
+            int threads_to_spawn = std::min(num_threads, (int)corners.size());
+            int loops_per_thread = extra_loops / threads_to_spawn;
+
+            for (int i = 0; i < threads_to_spawn; ++i) {
+                auto start = corners[i];
+                size_t tid = i + 1;
+                threads.emplace_back([this, loops_per_thread, start, tid, &ts]() {
+                    // Local state
+                    int local_loops = loops_per_thread;
+                    std::stack<cell*> st;
+                    // Initialize starting cell under lock
+                    lock_mutex(start.first, start.second);
+                    cell_array[start.first][start.second].in_use = tid;
+                    unlock_mutex(start.first, start.second);
+                    st.push(&cell_array[start.first][start.second]);
+
+                    std::mt19937 gen(std::random_device{}());
+                    std::uniform_real_distribution<> prob(0.0, 1.0);
+
+                    while (!st.empty()) {
+                        cell* cur = st.top();
+                        int x = cur->x_cord, y = cur->y_cord;
+                        unsigned char moves = get_available_neighbors(x, y);
+
+                        if (moves == 0) {
+                            // Attempt to carve a loop
+                            unsigned char visited_dirs = 0;
+                            if (isValid(x-1,y) && cell_array[x-1][y].in_use && (cur->wall_direction_mask & Up))
+                                visited_dirs |= Up;
+                            if (isValid(x+1,y) && cell_array[x+1][y].in_use && (cur->wall_direction_mask & Down))
+                                visited_dirs |= Down;
+                            if (isValid(x,y-1) && cell_array[x][y-1].in_use && (cur->wall_direction_mask & Left))
+                                visited_dirs |= Left;
+                            if (isValid(x,y+1) && cell_array[x][y+1].in_use && (cur->wall_direction_mask & Right))
+                                visited_dirs |= Right;
+
+                            if (visited_dirs && local_loops > 0 && prob(gen) < 0.35) {
+                                unsigned char dir = choose_random_move_direction(visited_dirs);
+                                // Lock both cells before modifying
+                                lock_mutex(x, y);
+                                cur->wall_direction_mask &= ~dir;
+                                auto nxt_coords = move({x, y}, dir);
+                                lock_mutex(nxt_coords.first, nxt_coords.second);
+                                cell* nxt = &cell_array[nxt_coords.first][nxt_coords.second];
+                                nxt->wall_direction_mask &= ~get_opposite_direction(dir);
+                                nxt->in_use = tid;
+                                unlock_mutex(nxt_coords.first, nxt_coords.second);
+                                unlock_mutex(x, y);
+                                --local_loops;
+                            }
+                            st.pop();
+                        } else {
+                            unsigned char dir = choose_random_move_direction(moves);
+                            // Carve passage under locks
+                            lock_mutex(x, y);
+                            cur->wall_direction_mask &= ~dir;
+                            auto nxt_coords = move({x, y}, dir);
+                            lock_mutex(nxt_coords.first, nxt_coords.second);
+                            cell* nxt = &cell_array[nxt_coords.first][nxt_coords.second];
+                            nxt->wall_direction_mask &= ~get_opposite_direction(dir);
+                            nxt->in_use = tid;
+                            st.push(nxt);
+                            unlock_mutex(nxt_coords.first, nxt_coords.second);
+                            unlock_mutex(x, y);
+                        }
+                    }
+                });
+            }
+            // Join all threads
+            for (auto& t : threads) {
+                if (t.joinable()) t.join();
+            }
+        }
+    
+        void generate_multithread_backtrack(std::pair<int, int> start_cell_cords,
+                                            size_t thread_identifier,
+                                            Thread_sync& thread_sync_pointer)
         {
             lock_mutex(start_cell_cords.first, start_cell_cords.second);
             std::pair<int, int> current_cell_cords, next_cell_cords;
@@ -1320,27 +1414,28 @@ int main()
           }
           case 2:
 {
-    int n; 
-    cout << "n выходов> "; 
-    cin >> n;
+    int n;
+    std::cout << "n выходов> ";
+    std::cin >> n;
+    int num_threads = std::min(4, n);
+    std::cout << "Количество потоков (1-" << num_threads << ")> ";
+    int th; std::cin >> th;
     our::MazeSync m(20,20,1);
-    // Заменено:
-    m.generate_imperfect_backtrack(n);
+    m.generate_multithread_imperfect(n, th);
     auto S = m.start_cell_cords;
-    // сформировать n уникальных выходов
-    vector<pair<int,int>> exits;
+    // После многопоточной генерации назначаем n выходов
+    std::vector<std::pair<int,int>> exits;
     while ((int)exits.size() < n) {
         auto e = m.get_random_start_point();
-        if (e != S && find(exits.begin(), exits.end(), e) == exits.end())
+        if (e != S && std::find(exits.begin(), exits.end(), e) == exits.end())
             exits.push_back(e);
     }
-    // режим вывода
-    cout << "1. Ближайший выход\n2. Все выходы\nВыберите режим> ";
-    int mode; cin >> mode;
-
+    // Режим вывода: ближайший или все
+    std::cout << "1. Ближайший выход\n2. Все выходы\nВыберите режим> ";
+    int mode; std::cin >> mode;
     if (mode == 1) {
-        // найти ближайший
-        size_t best = 0, minD = SIZE_MAX;
+        size_t best = 0;
+        size_t minD = SIZE_MAX;
         for (size_t i = 0; i < exits.size(); ++i) {
             auto p = our::find_shortest_path(m, S, exits[i]);
             if (!p.empty() && p.size() < minD) {
@@ -1352,13 +1447,11 @@ int main()
         auto p = our::find_shortest_path(m, S, m.end_cell_cords);
         our::print_path_coordinates(p);
         our::print_maze_with_path(m, p);
-    }
-    else {
-        // вывести n лабиринтов
+    } else {
         for (size_t i = 0; i < exits.size(); ++i) {
             m.end_cell_cords = exits[i];
-            auto p = our::find_shortest_path(m, S, m.end_cell_cords);
-            cout << "\nВыход " << i+1 << " (" << exits[i].first << "," << exits[i].second << "):\n";
+            auto p = our::find_shortest_path(m, S, exits[i]);
+            std::cout << "\nВыход " << i+1 << " (" << exits[i].first << "," << exits[i].second << "):\n";
             our::print_path_coordinates(p);
             our::print_maze_with_path(m, p);
         }
