@@ -844,23 +844,44 @@ namespace our
         // Threads coordinate via per‑cell mutexes and stop when crossing another thread's territory.
         void generate_multithread_imperfect(int extra_loops, int num_threads)
         {
+            // Start timing
+            auto start_time = std::chrono::high_resolution_clock::now();
+            
             // Prepare threads and synchronization
             std::vector<std::thread> threads;
             threads.reserve(num_threads);
             Thread_sync ts(&threads);
 
-            // Define up to 4 corner start points
+            // Define all potential starting points - include entry point + corners
+            std::vector<std::pair<int,int>> start_points;
+            start_points.push_back(start_cell_cords); // Entry point (start)
+            
+            // Add corners as additional starting points
             std::vector<std::pair<int,int>> corners = {
                 {0, 0},
                 {0, width - 1},
                 {length - 1, 0},
                 {length - 1, width - 1}
             };
-            int threads_to_spawn = std::min(num_threads, (int)corners.size());
+            
+            // Remove the corner if it's the same as entry point
+            corners.erase(
+                std::remove(corners.begin(), corners.end(), start_cell_cords),
+                corners.end()
+            );
+            
+            // Add unique corners to starting points
+            for (auto& corner : corners) {
+                if (start_points.size() < num_threads) {
+                    start_points.push_back(corner);
+                }
+            }
+            
+            int threads_to_spawn = std::min(num_threads, (int)start_points.size());
             int loops_per_thread = extra_loops / threads_to_spawn;
 
             for (int i = 0; i < threads_to_spawn; ++i) {
-                auto start = corners[i];
+                auto start = start_points[i];
                 size_t tid = i + 1;
                 threads.emplace_back([this, loops_per_thread, start, tid, &ts]() {
                     // Local state
@@ -928,6 +949,11 @@ namespace our
             for (auto& t : threads) {
                 if (t.joinable()) t.join();
             }
+            
+            // End timing and calculate duration
+            auto end_time = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> duration = end_time - start_time;
+            std::cout << "Maze generation time: " << std::fixed << std::setprecision(2) << duration.count() << " ms" << std::endl;
         }
     
         void generate_multithread_backtrack(std::pair<int, int> start_cell_cords,
@@ -1405,7 +1431,17 @@ int main()
           {
             // …генерация 20×20 backtrack…
             our::MazeSync m(20,20,1);
+            
+            // Start timing
+            auto start_time = std::chrono::high_resolution_clock::now();
+            
             m.generate_backtrack();
+            
+            // End timing and calculate duration
+            auto end_time = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> duration = end_time - start_time;
+            std::cout << "Maze generation time: " << std::fixed << std::setprecision(2) << duration.count() << " ms" << std::endl;
+            
             // shortest path к единственному end_cell_cords
             auto path = our::find_shortest_path(m, m.start_cell_cords, m.end_cell_cords);
             our::print_path_coordinates(path);
@@ -1417,20 +1453,27 @@ int main()
     int n;
     std::cout << "n выходов> ";
     std::cin >> n;
-    int num_threads = std::min(4, n);
-    std::cout << "Количество потоков (1-" << num_threads << ")> ";
+    int max_threads = n + 1; // +1 for the entrance
+    std::cout << "Количество потоков (1-" << max_threads << ")> ";
     int th; std::cin >> th;
     our::MazeSync m(20,20,1);
+    
+    // Choose random entry point first
+    m.start_cell_cords = m.get_random_start_point();
+    
+    // Generate the maze with threads from entry and exits
     m.generate_multithread_imperfect(n, th);
+    
     auto S = m.start_cell_cords;
-    // После многопоточной генерации назначаем n выходов
+    // After multithreaded generation, assign n exits
     std::vector<std::pair<int,int>> exits;
     while ((int)exits.size() < n) {
         auto e = m.get_random_start_point();
         if (e != S && std::find(exits.begin(), exits.end(), e) == exits.end())
             exits.push_back(e);
     }
-    // Режим вывода: ближайший или все
+    
+    // Display mode: nearest or all exits
     std::cout << "1. Ближайший выход\n2. Все выходы\nВыберите режим> ";
     int mode; std::cin >> mode;
     if (mode == 1) {
