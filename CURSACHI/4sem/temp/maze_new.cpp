@@ -1,4 +1,4 @@
-﻿#include <iostream>  
+#include <iostream>  
 #include <vector>
 #include <random>
 #include <stack>
@@ -14,20 +14,11 @@
 #include <iomanip>
 #include <cstdlib>  
 #include <memory>
-#include <cmath>          // for std::ceil
-#include <QWidget>
-#include <QPainter>
-#include <QColor>
-#include <QPushButton>
-#include <QVBoxLayout>
-#include <QPainterPath>
-#include <QPen>
 #include <QMainWindow>
 #include <QMenuBar>
 #include <QAction>
 #include <QInputDialog>
 #include <QMessageBox>
-#include <QApplication>
 namespace our  
 {  
     enum Directions  
@@ -1047,47 +1038,6 @@ namespace our
         std::cout << "YES, I LOVE MY..." << std::endl;  // ЧТОООО?
     }
 
-    // ------------------------------------------------------------------
-    //  Выбирает n случайных граничных клеток (≠ start) и «пробивает» к ним
-    //  выход наружу, убирая стенку, обращённую к границе.  Возвращает
-    //  вектор координат всех добавленных выходов.
-    std::vector<std::pair<int,int>> add_border_exits(MazeSync& maze, int n)
-    {
-        std::vector<std::pair<int,int>> border;
-        // соберём все клетки на границе
-        for(int x=0; x<maze.length; ++x){
-            border.push_back({x,0});
-            border.push_back({x,maze.width-1});
-        }
-        for(int y=1; y<maze.width-1; ++y){
-            border.push_back({0,y});
-            border.push_back({maze.length-1,y});
-        }
-        // удалим старт‑клетку
-        border.erase(std::remove(border.begin(),border.end(),maze.start_cell_cords), border.end());
-
-        std::random_device rd; std::mt19937 gen(rd());
-        std::shuffle(border.begin(), border.end(), gen);
-        if(n > (int)border.size()) n = border.size();
-
-        std::vector<std::pair<int,int>> exits;
-        exits.reserve(n);
-
-        auto carve = [&](int x,int y){
-            if(x==0)        maze.cell_array[x][y].wall_direction_mask &= ~Up;
-            else if(x==maze.length-1) maze.cell_array[x][y].wall_direction_mask &= ~Down;
-            else if(y==0)   maze.cell_array[x][y].wall_direction_mask &= ~Left;
-            else            maze.cell_array[x][y].wall_direction_mask &= ~Right;
-        };
-
-        for(int i=0;i<n;++i){
-            auto c = border[i];
-            carve(c.first,c.second);
-            exits.push_back(c);
-        }
-        return exits;
-    }
-
     std::vector<std::pair<int, int>> find_shortest_path(MazeSync& maze, std::pair<int, int> start, std::pair<int, int> end) {
         // Check if start and end points are valid
         if (!maze.isValid(start.first, start.second) || !maze.isValid(end.first, end.second)) {
@@ -1466,84 +1416,14 @@ namespace our
 }
 
 // ───────────────────────────────────────────────────────────────
-// Виджет для отображения лабиринта
-class MazeWidget : public QWidget
-{
-public:
-    explicit MazeWidget(our::MazeSync* m = nullptr, QWidget* parent = nullptr)
-        : QWidget(parent), maze(m) {}
-
-    void setMaze(our::MazeSync* m) { maze = m; update(); }
-    void setPath(const std::vector<std::pair<int,int>>& p) { path = p; update(); }
-    void setExits(const std::vector<std::pair<int,int>>& ex) { exits = ex; update(); }
-
-protected:
-    void paintEvent(QPaintEvent*) override
-    {
-        if (!maze) return;
-        QPainter p(this);
-        const int cols = maze->width;
-        const int rows = maze->length;
-        const int cw = width()  / std::max(1, cols);
-        const int ch = height() / std::max(1, rows);
-
-        for (int i = 0; i < rows; ++i)
-        {
-            for (int j = 0; j < cols; ++j)
-            {
-                unsigned char mask = maze->cell_array[i][j].wall_direction_mask;
-                const int x = j * cw;
-                const int y = i * ch;
-                if (mask & our::Up)    p.drawLine(x, y, x + cw, y);
-                if (mask & our::Down)  p.drawLine(x, y + ch, x + cw, y + ch);
-                if (mask & our::Left)  p.drawLine(x, y, x, y + ch);
-                if (mask & our::Right) p.drawLine(x + cw, y, x + cw, y + ch);
-            }
-        }
-
-        // ───────────────  overlay: start, end, path  ───────────────
-        // start cell – green, end cell – red
-        p.fillRect(maze->start_cell_cords.second * cw, maze->start_cell_cords.first * ch,
-                   cw, ch, QColor(0,255,0,120));
-        p.fillRect(maze->end_cell_cords.second * cw,   maze->end_cell_cords.first * ch,
-                   cw, ch, QColor(255,0,0,120));
-        // draw other exits (red, semi-transparent)
-        for(const auto& ex : exits)
-        {
-            if(ex == maze->end_cell_cords) continue;        // конечный уже нарисован
-            p.fillRect(ex.second * cw, ex.first * ch, cw, ch, QColor(255,0,0,120));
-        }
-
-        // path – thick gold poly‑line
-        if(path.size() > 1)
-        {
-            QPainterPath pp;
-            const auto first = path.front();
-            pp.moveTo(first.second * cw + cw/2.0, first.first * ch + ch/2.0);
-            for(size_t k = 1; k < path.size(); ++k)
-            {
-                const auto pt = path[k];
-                pp.lineTo(pt.second * cw + cw/2.0, pt.first * ch + ch/2.0);
-            }
-            QPen pen(QColor(255, 215, 0));          // золотая
-            pen.setWidth(std::max(2, std::min(cw, ch)/4));
-            pen.setCapStyle(Qt::RoundCap);
-            p.setPen(pen);
-            p.drawPath(pp);
-        }
-    }
-
-private:
-    our::MazeSync* maze;
-    std::vector<std::pair<int,int>> path;   // кратчайший путь
-    std::vector<std::pair<int,int>> exits;   // дополнительные выходы
-};
-// ───────────────────────────────────────────────────────────────
+// Виджет для отображения лабиринта (заглушка, требуется реализация)
+// (Существующий MazeWidget должен быть определён выше)
 
 // ───────────────────────────────────────────────────────────────
 // Главноe окно с меню, дублирующим прежний консольный интерфейс
 class MainWindow : public QMainWindow
 {
+    Q_OBJECT
 public:
     MainWindow(QWidget* parent = nullptr)
         : QMainWindow(parent),
@@ -1552,121 +1432,13 @@ public:
         setCentralWidget(viewer);
         resize(700, 700);
         setWindowTitle("Maze GUI");
-        // createMenu(); // меню можно оставить, но пользоваться необязательно
-#ifdef Q_OS_MAC
-        // menuBar()->setNativeMenuBar(false);   // показываем меню внутри окна, а не в системной панели
-#endif
-        // отобразить классический 20×20 по умолчанию
-        maze = std::make_unique<our::MazeSync>(20, 20, 1);
-        maze->generate_backtrack();
-        viewer->setMaze(maze.get());
-        viewer->setExits({});
-        showPath();
-        // ────────────────────────────────
-        // Отдельное окно‑меню с кнопками
-        menuWindow = new QWidget;
-        menuWindow->setWindowTitle("Меню");
-        auto *lay = new QVBoxLayout(menuWindow);
-        auto *btnClassic   = new QPushButton("Классический 20×20");
-        auto *btnImperfect = new QPushButton("Неидеальный 20×20");
-        auto *btnSimple    = new QPushButton("Произвольный размер");
-        auto *btnMath      = new QPushButton("Математическое описание");
-        auto *btnGraphs    = new QPushButton("Графики производительности");
-        auto *btnExit      = new QPushButton("Выход");
-        lay->addWidget(btnClassic);
-        lay->addWidget(btnImperfect);
-        lay->addWidget(btnSimple);
-        lay->addWidget(btnMath);
-        lay->addWidget(btnGraphs);
-        lay->addWidget(btnExit);
-        menuWindow->setLayout(lay);
-        menuWindow->move(this->geometry().right() + 20, this->geometry().top());
-        menuWindow->show();
-        // привязки
-        connect(btnClassic, &QPushButton::clicked, this, [this](){           
-            maze = std::make_unique<our::MazeSync>(20,20,1);
-            maze->generate_backtrack();
-            viewer->setMaze(maze.get());
-            viewer->setExits({});
-            showPath();
-        });
-        connect(btnImperfect, &QPushButton::clicked, this, [this](){
-            {
-                bool ok=false;
-                int n = QInputDialog::getInt(this,"n выходов","Сколько дополнительных выходов?",3,1,50,1,&ok);
-                if(!ok) return;
-                int maxThreads = n+1;
-                int th = QInputDialog::getInt(this,"Потоки",
-                                              QString("Количество потоков (1‑%1)").arg(maxThreads),
-                                              maxThreads,1,maxThreads,1,&ok);
-                if(!ok) return;
 
-                maze = std::make_unique<our::MazeSync>(20,20,1);
-                maze->start_cell_cords = maze->get_random_start_point();
-                maze->generate_multithread_imperfect(n, th);
-
-                // добавляем n выходов и ищем кратчайший путь к ближайшему
-                auto exits = our::add_border_exits(*maze, n);
-                std::vector<std::pair<int,int>> bestPath;
-                int bestLen = INT_MAX;
-                for(const auto& ex : exits){
-                    auto path = our::find_shortest_path(*maze, maze->start_cell_cords, ex);
-                    if(!path.empty() && (int)path.size() < bestLen){
-                        bestLen = path.size();
-                        bestPath.swap(path);
-                        maze->end_cell_cords = ex;          // запоминаем ближайший как «финальный»
-                    }
-                }
-                viewer->setMaze(maze.get());
-                viewer->setPath(bestPath);
-                viewer->setExits(exits);
-            }
-        });
-        connect(btnSimple, &QPushButton::clicked, this, [this](){
-            bool ok1=false, ok2=false;
-            int w = QInputDialog::getInt(this,"Ширина","Ширина (1‑50)",20,1,50,1,&ok1);
-            if(!ok1) return;
-            int h = QInputDialog::getInt(this,"Высота","Высота (1‑50)",20,1,50,1,&ok2);
-            if(!ok2) return;
-            maze = std::make_unique<our::MazeSync>(h,w,1);
-            maze->generate_backtrack();
-            viewer->setMaze(maze.get());
-            viewer->setExits({});
-            showPath();
-        });
-        connect(btnMath, &QPushButton::clicked, this, [=](){
-            const char* txt =
-            "1) Classic backtracking DFS (perfect maze)\n"
-            "2) Non‑perfect backtracking (optimised): knocks down\n"
-            "   a wall to a visited neighbour during generation until\n"
-            "   n extra passages appear.\n";
-            MainWindow::showText("Алгоритмы", txt);
-        });
-        connect(btnGraphs, &QPushButton::clicked, this, [=](){
-            const char* info =
-            "Функция test_generation_time_by_thread_num() создаёт CSV‑файл\n"
-            "с измерениями времени генерации при разном количестве потоков.\n";
-            MainWindow::showText("Графики", info);
-        });
-        connect(btnExit, &QPushButton::clicked, qApp, &QApplication::quit);
-        // ────────────────────────────────
+        createMenu();
     }
 
 private:
     MazeWidget* viewer;
     std::unique_ptr<our::MazeSync> maze;   // текущий лабиринт
-    QWidget* menuWindow;
-
-    // вычислить путь и показать в viewer
-    void showPath()
-    {
-        auto route = our::find_shortest_path(*maze,
-                                             maze->start_cell_cords,
-                                             maze->end_cell_cords);
-        viewer->setPath(route);
-        // clear exits if not set
-        viewer->setExits({});
-    }
 
     //------------------------------------------------------------------
     // Помощник: показывает многострочный текст в QMessageBox
@@ -1677,6 +1449,83 @@ private:
         msg.setTextFormat(Qt::PlainText);
         msg.setText(body);
         msg.exec();
+    }
+
+    //------------------------------------------------------------------
+    void createMenu()
+    {
+        QMenu* m = menuBar()->addMenu("Меню");
+
+        // 1. Классический 20×20
+        QAction* aClassic = m->addAction("1  Классический 20×20");
+        connect(aClassic, &QAction::triggered, this, [this](){
+            maze = std::make_unique<our::MazeSync>(20,20,1);
+            maze->generate_backtrack();
+            viewer->setMaze(maze.get());
+        });
+
+        // 2. Неидеальный 20×20  (n входов, многопоточность)
+        QAction* aImperfect = m->addAction("2  Неидеальный 20×20 (n входов, потоки)");
+        connect(aImperfect, &QAction::triggered, this, [this](){
+            bool ok=false;
+            int n = QInputDialog::getInt(this,"n выходов","Сколько дополнительных выходов?",3,1,50,1,&ok);
+            if(!ok) return;
+            int maxThreads = n+1;
+            int th = QInputDialog::getInt(this,"Потоки",
+                                          QString("Количество потоков (1‑%1)").arg(maxThreads),
+                                          maxThreads,1,maxThreads,1,&ok);
+            if(!ok) return;
+
+            maze = std::make_unique<our::MazeSync>(20,20,1);
+            maze->start_cell_cords = maze->get_random_start_point();
+            maze->generate_multithread_imperfect(n, th);
+            viewer->setMaze(maze.get());
+        });
+
+        // 3. Простой произвольный размер
+        QAction* aSimple = m->addAction("3  Простой (произвольный размер)");
+        connect(aSimple, &QAction::triggered, this, [this](){
+            bool ok1=false, ok2=false;
+            int w = QInputDialog::getInt(this,"Ширина","Ширина (1‑50)",20,1,50,1,&ok1);
+            if(!ok1) return;
+            int h = QInputDialog::getInt(this,"Высота","Высота (1‑50)",20,1,50,1,&ok2);
+            if(!ok2) return;
+
+            maze = std::make_unique<our::MazeSync>(h,w,1);
+            maze->generate_backtrack();
+            viewer->setMaze(maze.get());
+        });
+
+        // 4. Математическое описание
+        QAction* aMath = m->addAction("4  Математическое описание");
+        connect(aMath, &QAction::triggered, this, [](){
+            const char* txt =
+            "1) Classic backtracking DFS (perfect maze)\n"
+            "   Time: O(W·H), Memory: O(W·H)\n\n"
+            "2) Non‑perfect backtracking (optimised):\n"
+            "   While carving, knocks down a wall to an already visited\n"
+            "   neighbour until exactly n extra passages appear.\n"
+            "   Time: O(W·H), Memory: O(W·H)\n\n"
+            "3) Simple border‑open maze without DFS — O(1).\n";
+            showText("Алгоритмы", txt);
+        });
+
+        // 5. Графики производительности
+        QAction* aGraphs = m->addAction("5  Графики производительности");
+        connect(aGraphs, &QAction::triggered, this, [](){
+            // Здесь можно вызвать test_generation_time_by_thread_num(...) и
+            // затем открыть CSV / отрисовать график. Пока показываем пояснение.
+            const char* info =
+            "Функция test_generation_time_by_thread_num() создаёт CSV‑файл\n"
+            "с измерениями времени генерации при разном количестве потоков.\n"
+            "Далее файл можно открыть в LibreOffice или импортировать в Python\n"
+            "для постройки графика.\n";
+            showText("Графики", info);
+        });
+
+        m->addSeparator();
+        QAction* aExit = m->addAction("0  Выход");
+        connect(aExit, &QAction::triggered, qApp, &QApplication::quit);
     }
 };
 // ───────────────────────────────────────────────────────────────
