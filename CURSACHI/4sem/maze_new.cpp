@@ -6,6 +6,7 @@
 #include <mutex>
 #include <algorithm>
 #include <thread>
+#include <future>
 #include <unordered_set>
 #include <chrono>
 #include <queue>
@@ -22,6 +23,10 @@
 #include <QVBoxLayout>
 #include <QPainterPath>
 #include <QPen>
+#include <QPixmap>
+#include <QLabel>
+#include <QProcess>
+#include <QFile>
 #include <QMainWindow>
 #include <QMenuBar>
 #include <QAction>
@@ -1348,16 +1353,14 @@ namespace our
         csv_file.close();  
         std::cout <<filename_stream.str()<< std::endl; 
     }
-    void test_generation_time_by_thread_num
-    (
-        int length, 
-        int width, 
+void test_generation_time_by_thread_num(
+        int length,
+        int width,
         int min_num_threads,
         int max_num_threads,
         int num_tests,
         int test_mutex_cell_size,
-        bool want_one_thread
-    )
+        bool want_one_thread)
     {
         std::ostringstream filename_stream; 
         filename_stream << "test_generation_time_by_thread_num_" << test_mutex_cell_size << "mutex_cell_size.csv";
@@ -1369,6 +1372,8 @@ namespace our
         }  
 
         csv_file << "№" << "," << "Количество потоков" <<","<< "время" <<"\n";
+        csv_file.flush();
+        std::cerr << "[INFO] CSV header written, path = " << filename_stream.str() << std::endl;
         switch (want_one_thread)
         {
         case 1:
@@ -1390,42 +1395,44 @@ namespace our
         }
         
         for (
-            int num_threads = min_num_threads; 
+            int num_threads = min_num_threads;
             num_threads <= max_num_threads;
-            ++ num_threads
-            )
+            ++num_threads
+        )
+        {
+            // ── запускаем num_tests испытаний параллельно ─────────────────────
+            std::vector<std::future<double>> fut;
+            fut.reserve(num_tests);
+
+            for (int test = 1; test <= num_tests; ++test)
             {
-            for (int test = 1; test <= num_tests; ++test) 
-                {  
-                    MazeSync my_sync(length, width, test_mutex_cell_size); 
+                fut.emplace_back(std::async(std::launch::async, [=]() -> double {
+                    MazeSync my_sync(length, width, test_mutex_cell_size);
                     std::vector<std::thread> threads(num_threads);
-                    std::vector<std::pair<int, int>> start_points;  
-                    Thread_sync myStruct(&threads);  
-                    my_sync.generate_and_set_random_start_end_points(start_points) ;
+                    std::vector<std::pair<int, int>> start_points;
+                    Thread_sync myStruct(&threads);
+                    my_sync.generate_and_set_random_start_end_points(start_points);
 
-                    // Точка начала отсчета 
-                    auto start_time = std::chrono::high_resolution_clock::now();  
+                    auto t0 = std::chrono::high_resolution_clock::now();
+                    for (int i = 0; i < num_threads; ++i) {
+                        threads[i] = std::thread(&MazeSync::generate_multithread_backtrack,
+                                                 &my_sync, start_points[i], i + 1, std::ref(myStruct));
+                    }
+                    for (auto& t : threads) if (t.joinable()) t.join();
 
-                    // генерация лабиринтуса 
-                    for (int i = 0; i < num_threads; ++i) 
-                    {  
-                        threads[i] = std::thread(&MazeSync::generate_multithread_backtrack,  
-                        &my_sync, start_points[i], i + 1, std::ref(myStruct));  
-                    }  
-                    for (auto& t : threads) {  
-                        if (t.joinable()) 
-                        {  
-                            t.join();  
-                        }  
-                    }  
-
-                    auto end_time = std::chrono::high_resolution_clock::now();  
-                    std::chrono::duration<double, std::milli> duration = end_time - start_time;  
-                    start_points.clear();
-                    // Записываем результат прогона
-                    csv_file << test << "," << num_threads<<"," <<std::fixed << std::setprecision(2) << duration.count() << "\n";  
-                }  
+                    auto dt = std::chrono::high_resolution_clock::now() - t0;
+                    return std::chrono::duration<double,std::milli>(dt).count();
+                }));
             }
+
+            // ── собираем результаты в том же порядке ─────────────────────────
+            for (int test = 1; test <= num_tests; ++test)
+            {
+                double ms = fut[test-1].get();
+                csv_file << test << "," << num_threads << ","
+                         << std::fixed << std::setprecision(2) << ms << "\n";
+            }
+        }
 
         csv_file.close();  
         std::cout <<filename_stream.str()<< std::endl; 
@@ -1636,17 +1643,66 @@ public:
         });
         connect(btnMath, &QPushButton::clicked, this, [=](){
             const char* txt =
-            "1) Classic backtracking DFS (perfect maze)\n"
-            "2) Non‑perfect backtracking (optimised): knocks down\n"
-            "   a wall to a visited neighbour during generation until\n"
-            "   n extra passages appear.\n";
+        "Алгоритмы генерации и поиска пути\n"
+        "─────────────────────────────────\n\n"
+        "1) Идеальный лабиринт — рекурсивный DFS-Backtracking.\n"
+        "   • Храним путь в стеке, удаляя стену к случайному непосещённому соседу.\n"
+        "   • Каждая клетка посещается ровно один раз — граф без циклов.\n"
+        "   • Сложность:  O(W·H) по времени и памяти.\n\n"
+        "2) Неидеальный лабиринт — модифицированный Backtracking.\n"
+        "   • В «тупике» с шансом ≈35 % рушим стену к уже посещённой клетке —\n"
+        "     образуется петля.  Повторяем, пока не получим n дополнительных\n"
+        "     проходов.\n"
+        "   • Потоковая версия запускает k потоков из разных углов; секции\n"
+        "     mutex_cell_size×mutex_cell_size защищены одним мьютексом.\n"
+        "   • Сложность остаётся O(W·H), но время падает ~1/k.\n\n"
+        "3) BFS — кратчайший путь.\n"
+        "   • Фронт «растёт» по клеткам без стен; первое достижение выхода даёт\n"
+        "     минимальный маршрут.\n"
+        "   • Сложность: O(W·H) по времени и памяти.\n";
             MainWindow::showText("Алгоритмы", txt);
         });
         connect(btnGraphs, &QPushButton::clicked, this, [=](){
-            const char* info =
-            "Функция test_generation_time_by_thread_num() создаёт CSV‑файл\n"
-            "с измерениями времени генерации при разном количестве потоков.\n";
-            MainWindow::showText("Графики", info);
+        {
+        // ➊ Запрашиваем диапазон потоков
+        bool okA=false, okB=false;
+        int minTh = QInputDialog::getInt(this, "Минимум потоков", "от", 2, 2, 64, 1, &okA);
+        if(!okA) return;
+        int maxTh = QInputDialog::getInt(this, "Максимум потоков",
+                                        QString("до (≥%1)").arg(minTh),
+                                        minTh, minTh, 64, 1, &okB);
+        if(!okB) return;
+        // Сколько повторов (5–20)?
+        bool okNT = false;
+        int numTests = QInputDialog::getInt(this, "Повторов",
+                                            "Сколько тестов на точку (5-20)?",
+                                            5, 5, 20, 1, &okNT);
+        if(!okNT) return;
+
+        // ➋ Генерируем CSV (20×20, mutex=1, )
+        our::test_generation_time_by_thread_num(20, 20,
+                                                minTh, maxTh,
+                                                numTests, 1, false);
+        QString csv = "test_generation_time_by_thread_num_1mutex_cell_size.csv";
+        QString png = "speed_plot.png";
+
+        // ➌ Вызываем внешний python-скрипт
+        QProcess p;
+        p.start("python3", {"gen_speed_plot.py", csv, png});
+        p.waitForFinished(-1);
+
+        if(!QFile::exists(png)) {
+            MainWindow::showText("Ошибка",
+                "PNG не создан. Убедитесь, что установлен Python 3 + matplotlib.");
+            return;
+        }
+        // ➍ Показываем график
+        QLabel* lbl = new QLabel;
+        lbl->setPixmap(QPixmap(png));
+        lbl->setWindowTitle("Скорость генерации");
+        lbl->setAttribute(Qt::WA_DeleteOnClose);
+        lbl->show();
+        }
         });
         connect(btnExit, &QPushButton::clicked, qApp, &QApplication::quit);
         // ────────────────────────────────
@@ -1664,8 +1720,7 @@ private:
                                              maze->start_cell_cords,
                                              maze->end_cell_cords);
         viewer->setPath(route);
-        // clear exits if not set
-        viewer->setExits({});
+    if(route.empty()) viewer->setExits({});
     }
 
     //------------------------------------------------------------------
