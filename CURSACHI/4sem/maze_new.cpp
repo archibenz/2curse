@@ -1675,8 +1675,8 @@ public:
         // Сколько повторов (5–20)?
         bool okNT = false;
         int numTests = QInputDialog::getInt(this, "Повторов",
-                                            "Сколько тестов на точку (5-20)?",
-                                            5, 5, 20, 1, &okNT);
+                                            "Сколько тестов на точку (5-100)?",
+                                            5, 5, 100, 1, &okNT);
         if(!okNT) return;
 
         // ➋ Генерируем CSV (20×20, mutex=1, )
