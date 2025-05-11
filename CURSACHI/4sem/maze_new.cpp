@@ -1374,9 +1374,8 @@ void test_generation_time_by_thread_num(
         csv_file << "№" << "," << "Количество потоков" <<","<< "время" <<"\n";
         csv_file.flush();
         std::cerr << "[INFO] CSV header written, path = " << filename_stream.str() << std::endl;
-        switch (want_one_thread)
+        if (want_one_thread)
         {
-        case 1:
             for (int test = 1; test <= num_tests; ++test) 
             {  
                 Maze my(length, width);
@@ -1388,10 +1387,6 @@ void test_generation_time_by_thread_num(
                 // Записываем результат прогона
                 csv_file << test << "," << "1"<<"," <<std::fixed << std::setprecision(2) << duration.count() << "\n";  
             }  
-            break;
-        
-        default:
-            break;
         }
         
         for (
@@ -1472,7 +1467,7 @@ void test_generation_time_by_thread_num(
 
 }
 
-// ───────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────��──
 // Виджет для отображения лабиринта
 class MazeWidget : public QWidget
 {
@@ -1483,6 +1478,10 @@ public:
     void setMaze(our::MazeSync* m) { maze = m; update(); }
     void setPath(const std::vector<std::pair<int,int>>& p) { path = p; update(); }
     void setExits(const std::vector<std::pair<int,int>>& ex) { exits = ex; update(); }
+    void setAllPaths(const std::vector<std::vector<std::pair<int,int>>>& paths) {
+        allPaths = paths;
+        update();
+    }
 
 protected:
     void paintEvent(QPaintEvent*) override
@@ -1508,42 +1507,86 @@ protected:
             }
         }
 
-        // ───────────────  overlay: start, end, path  ───────────────
-        // start cell – green, end cell – red
+        // ───────────────  overlay: start, exits ───────────────
+        // start cell – green
         p.fillRect(maze->start_cell_cords.second * cw, maze->start_cell_cords.first * ch,
                    cw, ch, QColor(0,255,0,120));
-        p.fillRect(maze->end_cell_cords.second * cw,   maze->end_cell_cords.first * ch,
-                   cw, ch, QColor(255,0,0,120));
-        // draw other exits (red, semi-transparent)
-        for(const auto& ex : exits)
-        {
-            if(ex == maze->end_cell_cords) continue;        // конечный уже нарисован
-            p.fillRect(ex.second * cw, ex.first * ch, cw, ch, QColor(255,0,0,120));
+        // mark all exits in red (semi-transparent)
+        for (const auto& ex : exits) {
+            p.fillRect(ex.second * cw, ex.first * ch,
+                       cw, ch, QColor(255,0,0,120));
         }
 
-        // path – thick gold poly‑line
-        if(path.size() > 1)
-        {
-            QPainterPath pp;
-            const auto first = path.front();
-            pp.moveTo(first.second * cw + cw/2.0, first.first * ch + ch/2.0);
-            for(size_t k = 1; k < path.size(); ++k)
-            {
-                const auto pt = path[k];
-                pp.lineTo(pt.second * cw + cw/2.0, pt.first * ch + ch/2.0);
-            }
-            QPen pen(QColor(255, 215, 0));          // золотая
-            pen.setWidth(std::max(2, std::min(cw, ch)/4));
-            pen.setCapStyle(Qt::RoundCap);
-            p.setPen(pen);
-            p.drawPath(pp);
+        // Draw paths (colored): either allPaths if non-empty, else the single path
+        std::vector<std::vector<std::pair<int,int>>> toDraw;
+        if (!allPaths.empty()) {
+            toDraw = allPaths;
+        } else if (path.size() > 1) {
+            toDraw.push_back(path);
         }
+        const QVector<QColor> colors = {
+            QColor(255, 215, 0),   // yellow
+            QColor(0, 191, 255),   // deep sky blue
+            QColor(50, 205, 50),   // lime green
+            QColor(255, 69, 0),    // orange red
+            QColor(138, 43, 226),  // blue violet
+            QColor(0, 255, 255),   // cyan
+            QColor(255, 0, 255),   // magenta
+            QColor(218, 165, 32),  // goldenrod
+            QColor(34, 139, 34),   // forest green
+            QColor(255, 105, 180)  // hot pink
+        };
+        if (!toDraw.empty()) {
+		// Draw the main path fully
+		const auto& mainPth = toDraw[0];
+		if (mainPth.size() > 1) {
+			QPen pen(colors[0]);
+			pen.setWidth(std::max(2, std::min(cw, ch) / 4));
+			pen.setCapStyle(Qt::RoundCap);
+			p.setPen(pen);
+			QPainterPath pp;
+			const auto first = mainPth.front();
+			pp.moveTo(first.second * cw + cw/2.0, first.first * ch + ch/2.0);
+			for (size_t k = 1; k < mainPth.size(); ++k) {
+				const auto pt = mainPth[k];
+				pp.lineTo(pt.second * cw + cw/2.0, pt.first * ch + ch/2.0);
+			}
+			p.drawPath(pp);
+		}
+		// Draw branches only from divergence point
+		for (int idx = 1; idx < (int)toDraw.size(); ++idx) {
+			const auto& pth = toDraw[idx];
+			if (pth.size() < 2) continue;
+			// find common prefix length with main path
+			size_t common = 0;
+			while (common < pth.size() && common < toDraw[0].size()
+				   && pth[common] == toDraw[0][common]) {
+				++common;
+			}
+			// need at least one shared cell to start branch
+			if (common < 1) continue;
+			QPen pen(colors[idx % colors.size()]);
+			pen.setWidth(std::max(2, std::min(cw, ch) / 4));
+			pen.setCapStyle(Qt::RoundCap);
+			p.setPen(pen);
+			QPainterPath pp;
+			// start from last shared cell
+			const auto start = pth[common - 1];
+			pp.moveTo(start.second * cw + cw/2.0, start.first * ch + ch/2.0);
+			for (size_t k = common; k < pth.size(); ++k) {
+				const auto pt = pth[k];
+				pp.lineTo(pt.second * cw + cw/2.0, pt.first * ch + ch/2.0);
+			}
+			p.drawPath(pp);
+		}
+	}
     }
 
 private:
     our::MazeSync* maze;
     std::vector<std::pair<int,int>> path;   // кратчайший путь
     std::vector<std::pair<int,int>> exits;   // дополнительные выходы
+    std::vector<std::vector<std::pair<int,int>>> allPaths;
 };
 // ───────────────────────────────────────────────────────────────
 
@@ -1567,7 +1610,7 @@ public:
         maze = std::make_unique<our::MazeSync>(20, 20, 1);
         maze->generate_backtrack();
         viewer->setMaze(maze.get());
-        viewer->setExits({});
+        viewer->setExits({ maze->end_cell_cords });   // показываем выход
         showPath();
         // ────────────────────────────────
         // Отдельное окно‑меню с кнопками
@@ -1594,7 +1637,8 @@ public:
             maze = std::make_unique<our::MazeSync>(20,20,1);
             maze->generate_backtrack();
             viewer->setMaze(maze.get());
-            viewer->setExits({});
+            viewer->setAllPaths({});
+            viewer->setExits({ maze->end_cell_cords });   // показываем выход
             showPath();
         });
         connect(btnImperfect, &QPushButton::clicked, this, [this](){
@@ -1612,20 +1656,104 @@ public:
                 maze->start_cell_cords = maze->get_random_start_point();
                 maze->generate_multithread_imperfect(n, th);
 
-                // добавляем n выходов и ищем кратчайший путь к ближайшему
+                // добавляем n выходов
                 auto exits = our::add_border_exits(*maze, n);
-                std::vector<std::pair<int,int>> bestPath;
-                int bestLen = INT_MAX;
-                for(const auto& ex : exits){
-                    auto path = our::find_shortest_path(*maze, maze->start_cell_cords, ex);
-                    if(!path.empty() && (int)path.size() < bestLen){
-                        bestLen = path.size();
-                        bestPath.swap(path);
-                        maze->end_cell_cords = ex;          // запоминаем ближайший как «финальный»
+                // 1) Убираем слишком близко расположенные выходы
+                int minDist = std::max(maze->width, maze->length) / n;
+                std::vector<std::pair<int,int>> filtered;
+                for (auto& ex : exits) {
+                    bool ok = true;
+                    for (auto& prev : filtered) {
+                        int d = std::abs(ex.first - prev.first)
+                              + std::abs(ex.second - prev.second);
+                        if (d < minDist) { ok = false; break; }
+                    }
+                    if (ok) filtered.push_back(ex);
+                }
+                while ((int)filtered.size() < n) {
+                    auto extra = our::add_border_exits(*maze, 1)[0];
+                    bool ok = true;
+                    for (auto& prev : filtered) {
+                        int d = std::abs(extra.first - prev.first)
+                              + std::abs(extra.second - prev.second);
+                        if (d < minDist) { ok = false; break; }
+                    }
+                    if (ok) filtered.push_back(extra);
+                }
+                exits = filtered;
+
+                // Ensure every exit is reachable and collect its path
+                std::vector<std::vector<std::pair<int,int>>> allPathsList;
+                for (const auto& ex : exits) {
+                    auto pth = our::find_shortest_path(*maze, maze->start_cell_cords, ex);
+                    if (pth.empty()) {
+                        // carve direct Manhattan corridor through maze walls
+                        int cx = maze->start_cell_cords.first, cy = maze->start_cell_cords.second;
+                        int ex_r = ex.first, ex_c = ex.second;
+                        // vertical carve
+                        while (cx < ex_r) {
+                            maze->cell_array[cx][cy].wall_direction_mask &= ~our::Down;
+                            maze->cell_array[cx+1][cy].wall_direction_mask &= ~our::Up;
+                            ++cx;
+                        }
+                        while (cx > ex_r) {
+                            maze->cell_array[cx][cy].wall_direction_mask &= ~our::Up;
+                            maze->cell_array[cx-1][cy].wall_direction_mask &= ~our::Down;
+                            --cx;
+                        }
+                        // horizontal carve
+                        while (cy < ex_c) {
+                            maze->cell_array[cx][cy].wall_direction_mask &= ~our::Right;
+                            maze->cell_array[cx][cy+1].wall_direction_mask &= ~our::Left;
+                            ++cy;
+                        }
+                        while (cy > ex_c) {
+                            maze->cell_array[cx][cy].wall_direction_mask &= ~our::Left;
+                            maze->cell_array[cx][cy-1].wall_direction_mask &= ~our::Right;
+                            --cy;
+                        }
+                        // re-run BFS now that walls are opened
+                        pth = our::find_shortest_path(*maze, maze->start_cell_cords, ex);
+                    }
+                    allPathsList.push_back(pth);
+                }
+                // определяем ближайший и дальний пути
+                std::vector<std::pair<int,int>> nearestPath, farthestPath;
+                int minLen = INT_MAX, maxLen = -1;
+                for (const auto& pth : allPathsList) {
+                    int len = static_cast<int>(pth.size());
+                    if (len < minLen) {
+                        minLen = len;
+                        nearestPath = pth;
+                    }
+                    if (len > maxLen) {
+                        maxLen = len;
+                        farthestPath = pth;
                     }
                 }
+                // выбор отображения
+                QStringList options = { "Ближайший", "Самый дальний", "Все" };
+                bool okChoice = false;
+                QString choice = QInputDialog::getItem(this, "Выбор пути", "Какой путь отображать?", options, 0, false, &okChoice);
+                if (!okChoice) {
+                    choice = options[0];
+                }
+                // обновляем отображение
                 viewer->setMaze(maze.get());
-                viewer->setPath(bestPath);
+                viewer->setAllPaths({});
+                if (choice == options[0]) {
+                    maze->end_cell_cords = nearestPath.empty() ? maze->end_cell_cords : nearestPath.back();
+                    viewer->setPath(nearestPath);
+                } else if (choice == options[1]) {
+                    maze->end_cell_cords = farthestPath.empty() ? maze->end_cell_cords : farthestPath.back();
+                    viewer->setPath(farthestPath);
+                } else {
+                    // Put the shortest path first so it becomes the “main” path for drawing
+                    std::sort(allPathsList.begin(), allPathsList.end(),
+                              [](const auto& a, const auto& b){ return a.size() < b.size(); });
+                    viewer->setAllPaths(allPathsList);
+                    viewer->setPath({});
+                }
                 viewer->setExits(exits);
             }
         });
@@ -1638,29 +1766,30 @@ public:
             maze = std::make_unique<our::MazeSync>(h,w,1);
             maze->generate_backtrack();
             viewer->setMaze(maze.get());
-            viewer->setExits({});
+            viewer->setAllPaths({});
+            viewer->setExits({ maze->end_cell_cords });   // показываем выход
             showPath();
         });
         connect(btnMath, &QPushButton::clicked, this, [=](){
-            const char* txt =
-        "Алгоритмы генерации и поиска пути\n"
-        "─────────────────────────────────\n\n"
-        "1) Идеальный лабиринт — рекурсивный DFS-Backtracking.\n"
-        "   • Храним путь в стеке, удаляя стену к случайному непосещённому соседу.\n"
-        "   • Каждая клетка посещается ровно один раз — граф без циклов.\n"
-        "   • Сложность:  O(W·H) по времени и памяти.\n\n"
-        "2) Неидеальный лабиринт — модифицированный Backtracking.\n"
-        "   • В «тупике» с шансом ≈35 % рушим стену к уже посещённой клетке —\n"
-        "     образуется петля.  Повторяем, пока не получим n дополнительных\n"
-        "     проходов.\n"
-        "   • Потоковая версия запускает k потоков из разных углов; секции\n"
-        "     mutex_cell_size×mutex_cell_size защищены одним мьютексом.\n"
-        "   • Сложность остаётся O(W·H), но время падает ~1/k.\n\n"
-        "3) BFS — кратчайший путь.\n"
-        "   • Фронт «растёт» по клеткам без стен; первое достижение выхода даёт\n"
-        "     минимальный маршрут.\n"
-        "   • Сложность: O(W·H) по времени и памяти.\n";
-            MainWindow::showText("Алгоритмы", txt);
+			const char* txt =
+			"Алгоритмы генерации и поиска пути\n"
+			"\n"
+			"1) Идеальный лабиринт — рекурсивный DFS-Backtracking.\n"
+			"   • Храним путь в стеке, удаляя стену к случайному непосещённому соседу.\n"
+			"   • Каждая клетка посещается ровно один раз — граф без циклов.\n"
+			"   • Сложность:  O(W·H) по времени и памяти.\n\n"
+			"2) Неидеальный лабиринт — модифицированный Backtracking.\n"
+			"   • В «тупике» с шансом ≈35 % рушим стену к уже посещённой клетке —\n"
+			"     образуется петля.  Повторяем, пока не получим n дополнительных\n"
+			"     проходов.\n"
+			"   • Потоковая версия запускает k потоков из разных углов; секции\n"
+			"     mutex_cell_size×mutex_cell_size защищены одним мьютексом.\n"
+			"   • Сложность остаётся O(W·H), но время падает ~1/k.\n\n"
+			"3) BFS — кратчайший путь.\n"
+			"   • Фронт «растёт» по клеткам без стен; первое достижение выхода даёт\n"
+			"     минимальный маршрут.\n"
+			"   • Сложность: O(W·H) по времени и памяти.\n";
+			MainWindow::showText("Алгоритмы", txt);
         });
         connect(btnGraphs, &QPushButton::clicked, this, [=](){
         {
@@ -1728,6 +1857,7 @@ private:
     static void showText(const QString& title, const QString& body)
     {
         QMessageBox msg;
+        msg.setIcon(QMessageBox::NoIcon);
         msg.setWindowTitle(title);
         msg.setTextFormat(Qt::PlainText);
         msg.setText(body);
